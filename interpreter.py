@@ -4,15 +4,15 @@ from parser import Parser
 class Interpreter:
     def __init__(self, ast, debug_mode=False):
         self.ast = ast
-        self.data_segment = [0] * 700  # Segment de données de 700 octets
-        self.stack_segment = [0] * 500  # Segment de pile de 500 octets
-        self.flags = {'ZF': 0, 'SF': 0, 'OF': 0}  # Flags d'état
-        self.CO = 0  # Compteur ordinal
-        self.registers = {'AX': 0, 'BX': 0, 'CX': 0, 'DX': 0}  # Registres
-        self.variables = {}  # Dictionnaire pour stocker les variables
-        self.variable_addresses = {}  # Dictionnaire pour stocker les adresses des variables
-        self.current_address = 0  # Adresse actuelle pour le stockage des variables
-        self.stack_pointer = 0  # Pointeur de pile
+        self.data_segment = [0] * 700  # 700 bytes for data storage
+        self.stack_segment = [0] * 500  # stack memory - 500 bytes should be enough
+        self.flags = {'ZF': 0, 'SF': 0, 'OF': 0}  # status flags for cmp etc
+        self.CO = 0  # keeps track of current instruction
+        self.registers = {'AX': 0, 'BX': 0, 'CX': 0, 'DX': 0}  # basic registers
+        self.variables = {}  # store our variables here
+        self.variable_addresses = {}  # remember where each var is stored
+        self.current_address = 0  # next free memory slot
+        self.stack_pointer = 0  # points to top of stack
         self.debug_mode = debug_mode
 
     def debug(self, message):
@@ -23,31 +23,33 @@ class Interpreter:
         self.debug('Starting interpretation')
         self.parse_declarations()
         self.execute_instructions()
-        self.debug('Finished interpretation')
+        self.debug('All done!')
 
     def parse_declarations(self):
-        # Parcourir l'AST pour trouver les déclarations de variables et les initialiser
+        # first pass - handle all the variable declarations
         for node in self.ast:
             if node['type'] == 'declaration':
                 self.declare_variable(node)
 
     def declare_variable(self, node):
-        # Initialiser les variables dans le segment de données
+        # setup memory for a new variable
         var_name = node['name']
         var_type = node['var_type']
         if var_type == 'byte':
-            self.variables[var_name] = 0  # Initialiser à 0
+            self.variables[var_name] = 0  # start at zero
             self.variable_addresses[var_name] = self.current_address
             self.current_address += 1
         elif var_type.startswith('Array'):
             size = int(var_type.split('[')[1].split(']')[0])
-            self.variables[var_name] = [0] * size  # Initialiser un tableau de la taille spécifiée
+            self.variables[var_name] = [0] * size  # zero out the array
             self.variable_addresses[var_name] = self.current_address
             self.current_address += size
-        self.debug(f'Declared variable {var_name} of type {var_type} at address {self.variable_addresses[var_name]}')
+        self.debug(f'Setup var {var_name} ({var_type}) at addr {self.variable_addresses[var_name]}')
+        if self.current_address >= len(self.data_segment):
+            self.error('Oops - ran out of memory!')
 
     def execute_instructions(self):
-        # Parcourir l'AST pour exécuter les instructions
+        # run through all instructions one by one
         while self.CO < len(self.ast):
             node = self.ast[self.CO]
             if node['type'] == 'instruction':
@@ -104,7 +106,8 @@ class Interpreter:
 
     def add(self, dest, src):
         self.debug(f'Executing add {dest}, {src}')
-        self.variables[dest] += self.get_value(src)
+        result = self.variables[dest] + self.get_value(src)
+        self.variables[dest] = self.validate_byte_value(result, 'add')
         self.update_flags(self.variables[dest])
 
     def sub(self, dest, src):
@@ -172,7 +175,10 @@ class Interpreter:
         self.debug(f'Executing push {src}')
         if self.stack_pointer >= len(self.stack_segment):
             self.error('Stack overflow')
-        self.stack_segment[self.stack_pointer] = self.get_value(src)
+        value = self.get_value(src)
+        if value < -128 or value > 127:
+            self.error(f'Value {value} out of range for byte')
+        self.stack_segment[self.stack_pointer] = value
         self.stack_pointer += 1
 
     def pop(self, dest):
@@ -195,7 +201,9 @@ class Interpreter:
             return int(operand)
         elif '[' in operand and ']' in operand:
             var_name, index = operand.split('[')
-            index = int(index[:-1])  # Remove the closing bracket
+            index = int(index[:-1])
+            if index < 0 or index >= len(self.variables[var_name]):
+                self.error(f'Array index {index} out of bounds for {var_name}')
             return self.variables[var_name][index]
         elif operand in self.variables:
             return self.variables[operand]
@@ -204,11 +212,16 @@ class Interpreter:
 
     def update_flags(self, result):
         self.flags['ZF'] = 1 if result == 0 else 0
-        self.flags['SF'] = 1 if result >= 0 else 0
+        self.flags['SF'] = 1 if result < 0 else 0
         self.flags['OF'] = 1 if result < -127 or result > 128 else 0
 
     def error(self, message):
-        raise RuntimeError(message)
+        raise RuntimeError(f'Error at instruction {self.CO}: {message}')
+
+    def validate_byte_value(self, value, operation):
+        if value < -128 or value > 127:
+            self.error(f'Result of {operation} ({value}) out of range for byte')
+        return value
 
 # Example usage
 if __name__ == '__main__':

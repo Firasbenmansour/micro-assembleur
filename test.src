@@ -1,0 +1,7 @@
+Var x: byte, y: Array[10];
+mov x, 5;
+add x, 3;
+print(x);
+mov y[0], 42;
+print(y[0]);
+halt;
