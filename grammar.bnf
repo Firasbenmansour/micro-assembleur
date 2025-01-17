@@ -1,0 +1,47 @@
+<programme> ::= <declaration> <liste_instructions>
+
+<declaration> ::= "Var" <liste_declarations> ";"
+
+<liste_declarations> ::= <declaration_variable> | <declaration_variable> "," <liste_declarations>
+
+<declaration_variable> ::= <identifiant> ":" <type>
+
+<type> ::= "byte" | "Array" "[" <nombre> "]"
+
+<liste_instructions> ::= <instruction> | <instruction> <liste_instructions>
+
+<instruction> ::= <commande> ";"
+
+<commande> ::= "mov" <operande> "," <operande>
+              | "add" <operande> "," <operande>
+              | "sub" <operande> "," <operande>
+              | "mult" <operande> "," <operande>
+              | "div" <operande> "," <operande>
+              | "and" <operande> "," <operande>
+              | "or" <operande> "," <operande>
+              | "not" <operande>
+              | "jmp" <numero>
+              | "jz" <numero>
+              | "js" <numero>
+              | "jo" <numero>
+              | "input" "(" <operande> ")"
+              | "print" "(" <operande> ")"
+              | "halt"
+              | "push" <operande>
+              | "pop" <operande>
+              | "isFull"
+              | "call" <identifiant>
+
+<operande> ::= <identifiant> | <constante> | <tableau_index>
+
+<tableau_index> ::= <identifiant> "[" <expression> "]"
+
+<expression> ::= <entier> | <identifiant> | <expression> <operateur_arithmetique> <expression>
+
+<operateur_arithmetique> ::= "+" | "-" | "*" | "/"
+
+<identifiant> ::= [a-zA-Z][a-zA-Z0-9_]*
+
+<constante> ::= <entier>
+
+<entier> ::= ["+" | "-"]?[0-9]+
